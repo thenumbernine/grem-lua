@@ -1,17 +1,20 @@
 #!/usr/bin/env luajit
 require 'ext'
 local matrix = require 'matrix'
+local div = require 'div'
+local lapinv = require 'lapinv'
+local hemholtzinv = require 'hemholtzinv'
 matrix.__tostring = tolua
 local ns = matrix{8,8,8}
 print('ns',ns)
 local max = matrix{1,1,1}
 local min = -max
-local dxs = (max - min):ediv(ns)
+local dx = (max - min):ediv(ns)
 print('min',min)
 print('max',max)
-print('dxs',dxs)
+print('dx',dx)
 local xs = ns:lambda(function(...)
-	return (matrix{...} - .5):emul(dxs) + min
+	return (matrix{...} - .5):emul(dx) + min
 end)
 --print('xs',xs)
 local eps3 = matrix{3,3,3}:lambda(function(i,j,k)
@@ -24,80 +27,7 @@ local function cross(a,b)
 	return eps3 * b * a
 end
 
---[[
-units
-once again
-using Planck units
-
-space vs time:
-speed of light: c = 1 = ~c~ m/s, for ~c~ = 2.99792458e+8
-so ~c~ m = 1 s, 1/~c~ s = 1 m, m/s = 1/~c~
---]]
-local c_const = 2.99792458e+8
-print('c_const',c_const)  
-local s_in_m = 1 / c_const
-print('s_in_m',s_in_m) 
-
--- why not just change the lenght of a meter to 1/3e+8 ?
--- here is how much it would shrink by ...
---print((1/c_const - 1/3e+8)*c_const*1000)	-- difference in 1 m and 1 adj m, in terms of mm
--- 0.69180666666663 mm 
-
---[[
-space + time vs mass:
-G = 1 = ~G~ m^3 / (kg s^2), for ~G~ = 6.6740831e-11
-so 1 = ~G~ m^3 / (kg s^2)
-1 kg = ~G~ (m^2 / s^2) m
-1 kg = ~G~/~c~^2 m
---]]
-local G_const = 6.6740831e-11
-print('G_const',G_const)  
-local kg_in_m = G_const / c_const^2
-print('kg_in_m',kg_in_m)  
-
---[[
-space + time + mass vs charge:
-ke = 1 = ~ke~ kg m^3 / (s^2 C^2), for ~ke~ = 8.9875517873681764e+9
-so 1 = ~ke~ (~G~/~c~^2 m) m (1/~c~)^2 / C^2
-C^2 = ~ke~ ~G~ / ~c~^4 m^2
-1 C = sqrt(~ke~ ~G~) / ~c~^2 m
---]]
-local ke_const = 8.9875517873681764e+9
-print('ke_const',ke_const)  
-local C_in_m = math.sqrt(ke_const * G_const) / c_const^2	-- m
-print('C_in_m',C_in_m)  
-local N_in_m = kg_in_m / s_in_m^2	-- m^0
-print('N_in_m',N_in_m)  
-local V_in_m = N_in_m / C_in_m	-- m^0
-print('V_in_m',V_in_m)  
-local Ohm_in_m = kg_in_m / (s_in_m * C_in_m^2)	-- m^0
-print('Ohm_in_m',Ohm_in_m)  
-
---[[
-ke = 1 = 1 / (4 pi eps0) <=> eps0 = 1 / (4 pi)
-c^2 = 1 / (mu0 eps0) <=> mu0 = 1/eps0 = 4 pi
---]]
-local mu0 = 4 * math.pi	-- m^0
-print('mu0',mu0)  
-local eps0 = 1 / mu0	-- m^0
-print('eps0',eps0)  
-
---[[
-1 C = ~e~ e, for e = unit of charge for an electron, and ~e~ = 6.2415093414e+18
-so 1 e = 1/~e~ C = sqrt(~ke~ ~G~) / (~c~^2 ~e~) m
-notice that the classical electron radius is re = ke e^2 / (me c^2) = 2.817940322719e-15 m
---]]
-local e_const = 6.2415093414e+18
-print('e_const',e_const)  
-local e_in_m = C_in_m / e_const
-print('e_in_m',e_in_m)
-
-local h_in_m = 1.61622938e-35
-print('h_in_m',h_in_m)  
--- note the ratio of the elementary charge-converted-to-meters and Planck length 
--- is the same as the ratio of the elementary charge and Planck charge
-local alpha_const = (e_in_m/h_in_m)^2
-print('alpha_const',alpha_const)
+local constants = require 'constants'
 
 --[[
 local A = ns:lambda(function(...)
@@ -116,36 +46,21 @@ local B = ns:lambda(function(...) return matrix{0,1,0} end)
 -- small AA battery has 1.5 Volts
 -- current in amperes = voltage / resistance 
 
--- source: http://hyperphysics.phy-astr.gsu.edu/hbase/electric/resis.html
-local wire_resistivities = table{	-- at 20' Celsius, in ohm m
-	aluminum = 2.65e-8,
-	copper = 1.724e-8,
-	iron = 9.71e-8,
-	nichrome = 1e-6,
-	gold = 2.24e-8,
-	silver = 1.59e-8,
-	platinum = 1.06e-7,
-	tungsten = 5.65e-8,
-}:map(function(v) return v * Ohm_in_m end)	-- ohm m => m^0
-local in_in_m = .0254 
-local wire_diameters = table{	-- starts in inches
-	electrical_range = .1019,
-	household_circuit = .0808,
-	switch_leads = .0640,
-}:map(function(v) return v * in_in_m end)	-- in => m 
-local wire_radius = .5 * wire_diameters.electrical_range	-- m
+local wire_radius = .5 * constants.wire_diameters.electrical_range	-- m
 print('wire_radius',wire_radius)
 local wire_cross_section_area = math.pi * wire_radius^2	-- m^2
 print('wire_cross_section_area',wire_cross_section_area)  
-local wire_length = 12 * in_in_m	-- m
+local wire_length = 12 * constants.in_in_m	-- m
 print('wire_length',wire_length)  
-local wire_resistivity = wire_resistivities.gold
+local wire_resistivity = constants.wire_resistivities.gold
 print('wire_resistivity',wire_resistivity)  
 local wire_resistance = wire_resistivity * wire_length / wire_cross_section_area	-- m^0
 print('wire_resistance',wire_resistance)  
-local battery_voltage = 1.5 * V_in_m	-- m^0
-print('battery_voltage',battery_voltage)  
-local wire_current = battery_voltage / wire_resistance	-- amps = C / s = m / m = m^0, likewise volts = m^0, ohms = m^0, so amps = volts / ohms = m^0
+--local battery_voltage_in_V = 1.5
+local battery_voltage_in_V = 1e+5
+local battery_voltage_in_m = battery_voltage_in_V * constants.V_in_m	-- m^0
+print('battery_voltage_in_m',battery_voltage_in_m)  
+local wire_current = battery_voltage_in_m / wire_resistance	-- amps = C / s = m / m = m^0, likewise volts = m^0, ohms = m^0, so amps = volts / ohms = m^0
 print('wire_current',wire_current)  
 --local current_velocity = 1	-- doesn't matter if lambda = 0.  units of m/s = m^0
 -- so ... inside the wire we know q=0 by Kirchoff's law
@@ -161,14 +76,14 @@ local E = ns:lambda(function(...)
 	local r2 = math.sqrt(x*x+y*y)	-- m
 	-- hyperphysics:
 	--local lambda = wire_charge_density_per_length / current_velocity	-- m^0 / m^0 = m^0
-	--local Er = lambda / (2 * math.pi) / (eps0 * r2)	-- m^0 / m = m^-1
+	--local Er = lambda / (2 * math.pi) / (constants.eps0 * r2)	-- m^0 / m = m^-1
 	-- https://physics.stackexchange.com/questions/291779/electric-field-outside-wire-with-stationary-current?rq=1 
 	-- J = sigma E
 	local Ez_int = wire_current * wire_resistivity	-- m^0 * m^0 = m^0
 	local Er_int = 0
-	local Er = wire_surface_charge_density * wire_radius / (eps0 * r2)	-- m^0 * m / m = m^0
+	local Er = wire_surface_charge_density * wire_radius / (constants.eps0 * r2)	-- m^0 * m / m = m^0
 	local Ez = wire_current * wire_resistivity	-- m^0
-	return matrix{x/r2*Er,y/r2*Er,Ez} * math.sqrt(eps0)
+	return matrix{x/r2*Er,y/r2*Er,Ez} * math.sqrt(constants.eps0)
 	-- times sqrt(eps0) for convenience of representing T_ab
 end)
 print('E',E)
@@ -176,10 +91,10 @@ local B = ns:lambda(function(...)
 	local x,y,z = table.unpack(xs(...))	-- m
 	local r2 = math.sqrt(x*x+y*y)	-- m
 	-- http://www.ifi.unicamp.br/~assis/Found-Phys-V29-p729-753(1999).pdf
-	local Bt_int = mu0 * wire_current * r2 / (2 * math.pi * wire_radius^2) -- m^0 m / (m^2) = m^-1
-	local Bt = mu0 * wire_current / (2 * math.pi * r2)	-- m^-1
+	local Bt_int = constants.mu0 * wire_current * r2 / (2 * math.pi * wire_radius^2) -- m^0 m / (m^2) = m^-1
+	local Bt = constants.mu0 * wire_current / (2 * math.pi * r2)	-- m^-1
 	--print('Bt',Bt)
-	return matrix{-y/r2 * Bt, x/r2 * Bt, 0} / math.sqrt(mu0)
+	return matrix{-y/r2 * Bt, x/r2 * Bt, 0} / math.sqrt(constants.mu0)
 	-- divide sqrt(mu0) for convenience ... same deal
 end)
 print('B',B)
@@ -305,7 +220,7 @@ local function AConn3(Conn3)
 			xp[i] = math.min(xp[i] + 1, ns[i])
 			local xm = matrix(xs)
 			xm[i] = math.max(xm[i] - 1, 1)
-			return .5 / dxs[i] * (Conn3[xp[1]][xp[2]][xp[3]] 
+			return .5 / dx[i] * (Conn3[xp[1]][xp[2]][xp[3]] 
 								- Conn3[xm[1]][xm[2]][xm[3]])
 		end)
 		-- dxConn3[l][i][j][k] = Conn3^i_jk,l
@@ -358,7 +273,7 @@ local function AConn(Conn)
 			xp[i-1] = math.min(xp[i-1] + 1, ns[i-1])
 			local xm = matrix(xs)
 			xm[i-1] = math.max(xm[i-1] - 1, 1)
-			return .5 / dxs[i-1] * (Conn[xp[1]][xp[2]][xp[3]] - Conn[xm[1]][xm[2]][xm[3]])
+			return .5 / dx[i-1] * (Conn[xp[1]][xp[2]][xp[3]] - Conn[xm[1]][xm[2]][xm[3]])
 		end)
 		-- dxConn[l][i][j][k] = Conn^i_jk,l
 		return matrix{4,4,4,4}:lambda(function(i,j,k,l)
@@ -416,7 +331,7 @@ local function AConn(Conn)
 			-- Conn^a_bc,x <=> A[index(x,abc)][index(x-1,abc)] = -h/2, A[index(x,abc)][index(x+1,abc)] = h/2
 			-- Conn^a_bc,i <=> A[index(x_i,abc)][index(x_i-1,abc)] = -h/2, A[index(x_i,abc)][index(x_i+1,abc)] = h/2
 			-- Conn^a_bi,j - Conn^abj,i = R^a_bji <=> 	A[index(x,abji)][index(x-dxj,abi)] = -h/2, A[index(x,abji)][index(x+dxj,abi)] = h/2
-			--											A[index(x,abji)][index(x-dxs,abi)] = -h/2, A[index(x,abji)][index(x+dxs,abi)] = h/2
+			--											A[index(x,abji)][index(x-dx,abi)] = -h/2, A[index(x,abji)][index(x+dx,abi)] = h/2
 			-- now find AA^t
 			diff(j,Conn[{x,y,z, 1,i,k}]) - diff(k,Conn[{x,y,z, 1,i,j}]) = R[{x,y,z, 1,i,j,k}] + Conn^2
 			diff(j,Conn[{x,y,z, i,1,k}]) - diff(k,Conn[{x,y,z, i,1,j}]) = R[{x,y,z, i,1,j,k}] + Conn^2
@@ -427,7 +342,7 @@ local function AConn(Conn)
 			xp[i-1] = math.min(xp[i-1] + 1, ns[i-1])
 			local xm = matrix(xs)
 			xm[i-1] = math.max(xm[i-1] - 1, 1)
-			return .5 / dxs[i-1] * (Conn[xp[1]][xp[2]][xp[3]] - Conn[xm[1]][xm[2]][xm[3]])
+			return .5 / dx[i-1] * (Conn[xp[1]][xp[2]][xp[3]] - Conn[xm[1]][xm[2]][xm[3]])
 		end)
 		-- dxConn[l][i][j][k] = Conn^i_jk,l
 		return matrix{4,4,4,4}:lambda(function(i,j,k,l)
@@ -479,90 +394,7 @@ Conn^t_tj = Conn^t_jt + c_jt^t	<- which can be derived from above
 Conn^k_tj = Conn^k_jt + c_jt^k	<- "
 Conn^t_kj = Conn^t_jk + c_jk^t	<- which has to be solved separately
 Conn^k_lj = Conn^k_jl + c_jl^k
---]]
--- [=[ this is getting finite results!  hooray!
-local dt_Conn = matrix{ns[1],ns[2],ns[3],4,4,4}:zeros()
-local Conn = matrix{ns[1],ns[2],ns[3],4,4,4}:zeros()
-local last_Conn_norm 
-for iter=1,20 do
-	-- for each a,b calculate Conn^a_bt(x,y,z), stored as [a,b,x,y,z]
-	local ConnUa_bt = matrix{4,4}:lambda(function(a,b)	
-		-- returns Conn^a_bt,i = Conn^a_bi,t - R^a_bti + Conn^a_et Conn^e_bi - Conn^a_ei Conn^e_bt
-		local function eval_ConnUa_bt_i(x,y,z,i)
-			local ConnSq = 0
-			-- [[ ConnSq terms
-			local Conni = Conn[x][y][z]
-			for c=1,4 do
-				ConnSq = ConnSq + Conni[a][c][1] * Conni[c][b][i+1]
-								- Conni[a][c][i+1] * Conni[c][b][1]
-			end
-			--]]
-			local dt_Connabi = dt_Conn[x][y][z][a][b][i+1]
-			-- technically the E^j is raised by g, and g determined from Conn
-			-- but I'm going to assume g ~ I for now
-			local Rabti = R[x][y][z][a][b][1][i+1]
-			return dt_Connabi - Rabti + ConnSq
-		end
 
-		local lapConnUa_bt = ns:lambda(function(x,y,z)
-			if x == 1 or x == ns[1]
-			or y == 1 or y == ns[2]
-			or z == 1 or z == ns[3]
-			then
-				return 0
-			end
-			return (.5 / dxs[1]) * (eval_ConnUa_bt_i(x+1,y,z,1) - eval_ConnUa_bt_i(x-1,y,z,1))
-				+ (.5 / dxs[2]) * (eval_ConnUa_bt_i(x,y+1,z,2) - eval_ConnUa_bt_i(x,y-1,z,2))
-				+ (.5 / dxs[2]) * (eval_ConnUa_bt_i(x,y,z+1,3) - eval_ConnUa_bt_i(x,y,z-1,3))
-		end)
-		-- now solve the inverse of the divergence
-		-- and the gradient of that will be the inverse of the divergence
-
-		return require 'solver.gmres'{
-			x = -lapConnUa_bt,
-			b = lapConnUa_bt,
-			A = function(y)
-				return ns:lambda(function(i,j,k)
-					if i==1 or i==ns[1] or j==1 or j==ns[2] or k==1 or k==ns[3] then
-						return 0
-					else
-						local h2 = dxs[1]^2	-- TODO this for a non-square grid
-						return (y[i+1][j][k]
-								+ y[i-1][j][k]
-								+ y[i][j+1][k]
-								+ y[i][j-1][k]
-								+ y[i][j][k+1]
-								+ y[i][j][k-1]
-								- 6 * y[i][j][k]) / h2
-					end
-				end)	
-			end,
-			clone = matrix,
-			dot = matrix.dot,
-			errorCallback = function(err, iter, x, rSq, bSq)
-				-- err varies from algorithm to algorithm ... hmm ... maybe it shouldn't ... 
-				print('...gmres of Conn',a,b,'iter',iter, 'err',err)
-			end,
-			epsilon = 1e-30,
-			maxiter = 4 * ns:prod(),
-			restart = 50,	--gmres-only
-		}
-	end)
-	-- now swizzle to update the Conn^a_bt(x,y,z) components
-	for i in ConnUa_bt:iter() do
-		local a,b,x,y,z = table.unpack(i)
-		local ConnUa_bt_xi = ConnUa_bt[i]
-		Conn[x][y][z][a][b][1] = ConnUa_bt_xi 
-		Conn[x][y][z][a][1][b] = ConnUa_bt_xi
-	end
-	local Conn_norm = Conn:norm()
-	local delta_Conn_norm = last_Conn_norm and (Conn_norm - last_Conn_norm) or nil
-	print('iter',iter,'|Conn|',Conn_norm,'delta|Conn|',delta_Conn_norm)
-	if delta_Conn_norm and math.abs(delta_Conn_norm) < 1e-50 then break end
-	last_Conn_norm = Conn_norm
-end
---]=] 
---[[
 now to solve those last two
 R^t_ijk = Conn^t_ik,j - Conn^t_ij,k + Conn^t_aj Conn^a_ik - Conn^t_ak Conn^a_ij
 1/2 eps^mjk R^t_ijk = eps^mjk Conn^t_ik,j + eps^mjk Conn^t_aj Conn^a_ik
@@ -588,6 +420,10 @@ div B = D <=> div (curl A + grad phi) = D <=> div grad phi = lap phi = D
 => phi = lap^-1 D
 B = curl A + grad phi = grad lap^-1 D - curl veclap^-1 R
 
+so for div B = D = 0 we get ...
+A = -veclap^-1 R ... lap is applied per-component
+B = curl A = -curl veclap^-1 R = -curl veclap^-1 (curl B)
+
 Conn^t_tt is solved by div only
 Conn^k_tt is solved by div only
 Conn^t_tj is solved by div & curl
@@ -605,11 +441,197 @@ Conn^k_tj is solved by div & curl
 Conn^t_ij is solved by div & curl
 Conn^k_ij is solved by div & curl
 
+space/time breakdown of R^a_bcd:
+R^t_ttt = 0
+R^t_tti = Conn^t_ti,t - Conn^t_tt,i + Conn^t_at Conn^a_ti - Conn^t_ai Conn^a_tt - Conn^t_ta c_ti^a
+R^t_tit = -R^t_tti
+R^t_itt = 0
+R^i_ttt = 0
+R^t_tij = Conn^t_tj,i - Conn^t_ti,j + Conn^t_ai Conn^a_tj - Conn^t_aj Conn^a_ti - Conn^t_ta c_ij^a
+R^t_itj = Conn^t_ij,t - Conn^t_it,j + Conn^t_at Conn^a_ij - Conn^t_aj Conn^a_it - Conn^t_ia c_tj^a
+R^i_ttj = Conn^i_tj,t - Conn^i_tt,j + Conn^i_at Conn^a_tj - Conn^i_aj Conn^a_tt - Conn^i_ta c_tj^a
+R^t_ijt = -R^t_itj
+R^i_tjt = -R^i_ttj
+R^i_jtt = 0
+R^t_ijk = Conn^t_ik,j - Conn^t_ij,k + Conn^t_aj Conn^a_ik - Conn^t_ak Conn^a_ij - Conn^t_ia c_jk^a
+R^i_tjk = Conn^i_tk,j - Conn^i_tj,k + Conn^i_aj Conn^a_tk - Conn^i_ak Conn^a_tj - Conn^i_ta c_jk^a
+R^i_jtk = Conn^i_jk,t - Conn^i_jt,k + Conn^i_at Conn^a_jk - Conn^i_ak Conn^a_jt - Conn^i_ja c_tk^a
+R^i_jkt = -R^i_jtk
+R^i_jkl = Conn^i_jl,k - Conn^i_jk,l + Conn^i_ak Conn^a_jl - Conn^i_al Conn^a_jk - Conn^i_ja c_kl^a
+
+write out antisymmetric like terms (so we can solve for asymmetric Conn^a_bc's
+R^t_tit = -R^t_tti = Conn^t_tt,i - Conn^t_ti,t + Conn^t_ai Conn^a_tt - Conn^t_at Conn^a_ti - Conn^t_ta c_it^a
+R^t_ijt = -R^t_itj
+R^i_tjt = -R^i_ttj
+R^i_jkt = -R^i_jtk
+the first eqn is the same stmt as the R^t_tti, so it looks like it gives us no extra information?
+
+solve for grad Conn and curl Conn in terms of partial_t Conn, Riemann, and Conn^2 terms:
+	those in terms of gradient & time derivatives:
+Conn^t_tt,i = Conn^t_ti,t - R^t_tti + Conn^t_at Conn^a_ti - Conn^t_ai Conn^a_tt - Conn^t_ta c_ti^a
+Conn^t_it,j = Conn^t_ij,t - R^t_itj + Conn^t_at Conn^a_ij - Conn^t_aj Conn^a_it - Conn^t_ia c_tj^a
+Conn^i_tt,j = Conn^i_tj,t - R^i_ttj + Conn^i_at Conn^a_tj - Conn^i_aj Conn^a_tt - Conn^i_ta c_tj^a
+Conn^i_jt,k = Conn^i_jk,t - R^i_jtk + Conn^i_at Conn^a_jk - Conn^i_ak Conn^a_jt - Conn^i_ja c_tk^a
+	those in terms of curl:
+Conn^t_ti,j - Conn^t_tj,i = -R^t_tij + Conn^t_ai Conn^a_tj - Conn^t_aj Conn^a_ti - Conn^t_ta c_ij^a
+Conn^t_ij,k - Conn^t_ik,j = -R^t_ijk + Conn^t_aj Conn^a_ik - Conn^t_ak Conn^a_ij - Conn^t_ia c_jk^a
+Conn^i_tj,k - Conn^i_tk,j = -R^i_tjk + Conn^i_aj Conn^a_tk - Conn^i_ak Conn^a_tj - Conn^i_ta c_jk^a
+Conn^i_jk,l - Conn^i_jl,k = -R^i_jkl + Conn^i_ak Conn^a_jl - Conn^i_al Conn^a_jk - Conn^i_ja c_kl^a
+
+how to solve the grad+time-diff eqns:
+	Conn^a_bt is solved by lap^-1 div of index k of the rhs of the Conn^a_bt,k def
+	Conn^a_bt,i = Conn^a_bi,t - R^a_bti + Conn^a_ct Conn^c_bi - Conn^a_ci Conn^c_bt - Conn^a_bc c_ti^c
+notice these depend on the following time partials, which are arbitrary:
+	Conn^a_bt depends on Conn^a_bi,t
+...and there is the complete set of all symmetric terms of Conn^a_bc,t being used
+but what about the asymmetric terms: Conn^a_jt,t ?  what does tha influence?
+...nothing in the Riemann, it seems, because it would only show up in Conn^a_jt,t - Conn^a_jt,t => R^a_jtt = 0
+however it is related via Conn^a_jt - Conn^a_tj = c_tj^a
+
+how to solve the curl eqns:
+to invert a Hemholtz decomposition, solve B = grad lap^-1 (div B) - curl veclap^-1 (curl B)
+
+to fully solve the inverse of a curl, 
+you have an arbitrary gauge of the div of the field
+for which you insert anything...
+	Conn^a_bi,i is arbitrary
+then you do the soln
+	Conn^a_bk,j - Conn^a_bj,k = -R^a_bkj + Conn^a_ck Conn^c_bj - Conn^a_cj Conn^c_bk - Conn^a_bc c_kj^c
+...as a curl
+	eps^ijk Conn^a_bk,j = eps^ijk(-R^a_bkj + Conn^a_ck Conn^c_bj - Conn^a_cj Conn^c_bk - Conn^a_bc c_kj^c)
+	eps^ijk Conn^a_bk,j = -eps^ijk R^a_bkj + eps^ijk Conn^a_ck Conn^c_bj - eps^ijk Conn^a_cj Conn^c_bk - eps^ijk Conn^a_bc c_kj^c
+	eps^ijk Conn^a_bk,j = -eps^ijk R^a_bkj + 2 eps^ijk Conn^a_ck Conn^c_bj - Conn^a_bc eps^ijk c_kj^c
+
 hmm, running too slow as well, only getting a 8x8x8 to perform decently
 time to switch over to GPU ...
 ... which is already implemented in efesoln ...
 ... why not implement this algo there?
 --]]
+-- [=[ this is getting finite results!  hooray!
+local dt_Conn = matrix{ns[1],ns[2],ns[3],4,4,4}:zeros()
+local div_Conni = matrix{ns[1],ns[2],ns[3],4,4}:zeros()
+local Conn = matrix{ns[1],ns[2],ns[3],4,4,4}:zeros()
+local last_Conn_norm 
+for iter=1,20 do
+	-- for each a,b calculate Conn^a_bt(x,y,z), stored as [a,b,x,y,z]
+	local ConnUa_bt = matrix{4,4}:lambda(function(a,b)	
+		-- returns Conn^a_bt,i = Conn^a_bi,t - R^a_bti + Conn^a_et Conn^e_bi - Conn^a_ei Conn^e_bt - Conn^a_bc c_ti^c
+		local ConnUa_bt_i = ns:lambda(function(x,y,z)
+			return matrix{3}:lambda(function(i)
+				local ConnSq = 0
+				-- [[ connection squared terms
+				local Conni = Conn[x][y][z]
+				for c=1,4 do
+					ConnSq = ConnSq + Conni[a][c][1] * Conni[c][b][i+1]
+									- Conni[a][c][i+1] * Conni[c][b][1]
+				end
+				--]]
+				local comm = 0
+				-- [[ commutation terms: c_ti^c = Conn^c_it - Conn^c_ti
+				-- these will be zero anyways unless you want to relax the symmetry constraint upon Conn update below
+				for c=1,4 do
+					comm = comm + Conni[a][b][c] * (Conni[c][i+1][1] - Conni[c][1][i+1])
+				end
+				--]]
+				local dt_Connabi = dt_Conn[x][y][z][a][b][i+1]
+				-- technically the E^j is raised by g, and g determined from Conn
+				-- but I'm going to assume g ~ I for now
+				local Rabti = R[x][y][z][a][b][1][i+1]
+				return dt_Connabi - Rabti + ConnSq - comm
+			end)
+		end)
+
+		local lapConnUa_bt = div(ConnUa_bt_i, dx)
+		
+		-- now solve the inverse of the divergence
+		-- and the gradient of that will be the inverse of the divergence
+
+		return lapinv{
+			lap = lapConnUa_bt,
+			dx = dx,
+			errorCallback = function(err, iter, x, rSq, bSq)
+				-- err varies from algorithm to algorithm ... hmm ... maybe it shouldn't ... 
+				print('...div inv gmres of Conn '..a..','..b..' iter '..iter..' err '..err)
+				assert(math.isfinite(err))
+			end,
+		}
+	end)
+
+	-- a,b,x,y,z,i
+	local ConnUa_bi = matrix{4,4}:lambda(function(a,b)
+		-- x,y,z,i
+		local curl_ConnUa_bi = ns:lambda(function(...)
+			local Ri = R(...)
+			local Conni = Conn(...)
+			-- eps^ijk Conn^a_bk,j = eps^ijk(-R^a_bkj + Conn^a_ck Conn^c_bj - Conn^a_cj Conn^c_bk - Conn^a_bc c_kj^c)
+			-- 	= -eps^ijk R^a_bkj + 2 eps^ijk Conn^a_ck Conn^c_bj - Conn^a_bc eps^ijk c_kj^c
+			return matrix{3}:lambda(function(i)
+				local j = i%3+1
+				local k = j%3+1
+				local ConnSq = 0
+				-- [[ connection squared terms
+				for c=1,4 do
+					ConnSq = ConnSq + Conni[a][c][k] * Conni[c][b][j]
+				end
+				--]]
+				local comm = 0	
+				-- [[ commutation terms
+				-- c_kj^c = Conn^c_jk - Conn^c_kj
+				for c=1,4 do
+					comm = comm + Conni[a][b][c] * (Conni[c][j+1][k+1] - Conni[c][k+1][j+1])
+				end
+				--]]
+				-- this is only considering one nonzero ijk, not both
+				-- but all the terms are antisymmetric anyways, so just double them
+				return 2 * (-Ri[a][b][k][j] + ConnSq - comm)
+			end)
+		end)
+
+		-- x,y,z
+		local div_ConnUa_bi = ns:lambda(function(x,y,z)
+			return div_Conni(x,y,z,a,b)
+		end)
+
+		return hemholtzinv{
+			div = div_ConnUa_bi,
+			curl = curl_ConnUa_bi, 
+			dx = dx,
+			errorCallback = function(err, iter, x, rSq, bSq)
+				-- err varies from algorithm to algorithm ... hmm ... maybe it shouldn't ... 
+				print('...curl inv gmres of Conn '..a..','..b..' iter '..iter..' err '..err)
+				assert(math.isfinite(err))
+			end,
+		}
+	end)
+
+	-- now swizzle to update the Conn^a_bt(x,y,z) components
+	for i in ConnUa_bt:iter() do
+		local a,b,x,y,z = table.unpack(i)
+		local ConnUa_bt_xi = ConnUa_bt[i]
+		Conn[x][y][z][a][b][1] = ConnUa_bt_xi 
+		-- note that the upper-matrix Conn^a_ti components have no solution
+		-- they are completely up in the air, and differ with Conn^a_it by c_it^a
+		-- so if commutation coefficients are nonzero then Conn^a_ti is arbitrary 
+		Conn[x][y][z][a][1][b] = ConnUa_bt_xi
+		-- Conn^a_bj, on the other hand, has its upper-matrix portions accounted for since it is solved with a cirl
+		-- since it is solved using a curl, it does has DOF involving the div Conn^a_bj,j 
+		local ConnUa_bij = ConnUa_bi[i]
+		for j=1,3 do
+			Conn[x][y][z][a][b][j] = ConnUa_bij[j]
+		end
+		-- so degrees of freedom: 
+		-- Conn^a_bc,t by separation of time partials
+		-- linear part of Conn^a_bt, which disappears in the laplacian 
+		-- Conn^a_ti by nonzero commutations
+		-- Conn^a_bi,i by the fact that Conn^a_bi is solved by inverse curl, so div is arbitrary
+	end
+	local Conn_norm = Conn:norm()
+	local delta_Conn_norm = last_Conn_norm and (Conn_norm - last_Conn_norm) or nil
+	print('iter',iter,'|Conn|',Conn_norm,'delta|Conn|',delta_Conn_norm)
+	if delta_Conn_norm and math.abs(delta_Conn_norm) < 1e-50 then break end
+	last_Conn_norm = Conn_norm
+end
+--]=]
 local f = assert(io.open('out.txt','w'))
 f:write'#ix\tiy\tiz\tgrav\n'
 for i=1,ns[1] do
@@ -617,8 +639,16 @@ for i=1,ns[1] do
 		for k=1,ns[3] do
 			local x,y,z = table.unpack(xs[i][j][k])
 			local Conni = Conn[i][j][k]
-			local gx, gy, gz = Conni[2][1][1], Conni[3][1][1], Conni[4][1][1]
-			local grav = math.sqrt(gx*gx + gy*gy + gz*gz)
+			-- x''^i ~ Conn^i_ab x'^a x'^b
+			-- for objects at rest, x' = (1,0,0,0)
+			-- x' is in m/s = m^0
+			-- x'' is in m/s^2 = m^-1
+			-- so Conn^i_ab is in m^-1
+			-- d/dx Conn + Conn^2 ~ R^a_bcd
+			-- so R^a_bcd is in m^-2
+			local gx, gy, gz = Conni[2][1][1], Conni[3][1][1], Conni[4][1][1]	-- Conn should be in m^-1
+			local grav = math.sqrt(gx*gx + gy*gy + gz*gz)		-- 1/m = m/m^3
+			grav = grav / c^2	-- 1/m * (m/s)^2 => m/s^3	
 			f:write(x,'\t',y,'\t',z,'\t',grav,'\n')
 		end
 	end
