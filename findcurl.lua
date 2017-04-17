@@ -1,10 +1,11 @@
 #!/usr/bin/env luajit
 require 'ext'
+require 'matrix'.__tostring = tolua
+
 local matrix = require 'matrix'
-local hemholtzinv = require 'matrix.hemholtzinv'
-local curl = require 'matrix.curl'
-matrix.__tostring = tolua
-local n = matrix{8,8,8}
+--local matrix = require 'matrix.ffi'
+
+local n = matrix{6,6,6}
 print('n',n)
 local max = matrix{1,1,1}
 local min = -max
@@ -12,31 +13,40 @@ local dx = (max - min):ediv(n)
 print('min',min)
 print('max',max)
 print('dx',dx)
-local xs = n:lambda(function(...)
-	return (matrix{...} - .5):emul(dx) + min
-end)
+local xs = matrix.zeros(n[1],n[2],n[3],3)
+for i in n:range() do
+	xs[i] = (i - .5):emul(dx) + min
+end
 
-local F = n:lambda(function(...)
-	local i = matrix{...}
+local F = matrix.zeros(n[1],n[2],n[3],3)
+for i in n:range() do
 	if i[1]==1 or i[2]==1 or i[3]==1
 	or i[1]==n[1] or i[2]==n[2] or i[3]==n[3]
 	then
-		return matrix{0,0,0}
+		F[i] = matrix{0,0,0}
 	end
 	local xi = xs[i]
 	local x,y,z = xi:unpack()
-	--return matrix{-y,x,0}/xi:normSq()*.1
-	return matrix{-y,x,0}
-end)
+	F[i] = matrix{-y,x,0}/xi:normSq()
+--[[
+F = [-y,x,0]
+curl F = [0, 0, 2]
+--]]
+	F[i] = matrix{-y,x,0}
+end
 
 local c
 local F2
 local function apply(F_)
+	local curl = require 'matrix.curl'
+	local hemholtzinv = require 'matrix.hemholtzinv'
+	local startTime = os.clock()
 	F = F_
-	print('|F|',F:norm())
 	c = curl(F,dx)
-	print('|c|',c:norm())
 	F2 = hemholtzinv{curl=c, dx=dx}
+	print('took',os.clock()-startTime,'seconds')
+	print('|F|',F:norm())
+	print('|c|',c:norm())
 	print('|F2|',F2:norm())
 	print('|F-F2|',(F-F2):norm())
 end
@@ -54,6 +64,14 @@ App.viewDist = 2
 function App:update()
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 	App.super.update(self)
+
+	gl.glColor3d(1,1,1)
+	gl.glPointSize(3)
+	gl.glBegin(gl.GL_POINTS)
+	for i in n:range() do
+		gl.glVertex3d(xs[i]:unpack())
+	end
+	gl.glEnd()
 
 	gl.glBegin(gl.GL_LINES)
 	for i in n:range() do

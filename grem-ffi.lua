@@ -1,7 +1,7 @@
 #!/usr/bin/env luajit
 require 'ext'
-require 'matrix'.__tostring = tolua	-- so when matrix_cpu defaults to matrix_lua, it will refer to tolua
-local matrix = require 'matrix.cpu'
+require 'matrix'.__tostring = tolua	-- so when matrix_ffi defaults to matrix_lua, it will refer to tolua
+local matrix = require 'matrix.ffi'
 local ns = matrix{8,8,8}
 print('ns',ns)
 local max = matrix{1,1,1}
