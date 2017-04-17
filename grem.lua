@@ -1,9 +1,9 @@
 #!/usr/bin/env luajit
 require 'ext'
 local matrix = require 'matrix'
-local div = require 'div'
-local lapinv = require 'lapinv'
-local hemholtzinv = require 'hemholtzinv'
+local div = require 'matrix.div'
+local lapinv = require 'matrix.lapinv'
+local hemholtzinv = require 'matrix.hemholtzinv'
 matrix.__tostring = tolua
 local ns = matrix{8,8,8}
 print('ns',ns)
@@ -32,7 +32,7 @@ local constants = require 'constants'
 --[[
 local A = ns:lambda(function(...)
 	local i = matrix{...}
-	local x,y,z = table.unpack(xs[i])	
+	local x,y,z = xs[i]:unpack()
 	return matrix{
 	}
 end)
@@ -72,7 +72,7 @@ print('wire_charge_density_per_length',wire_charge_density_per_length)
 local wire_surface_charge_density = 0
 print('wire_surface_charge_density',wire_surface_charge_density)
 local E = ns:lambda(function(...)
-	local x,y,z = table.unpack(xs(...))	-- m
+	local x,y,z = xs(...):unpack()	-- m
 	local r2 = math.sqrt(x*x+y*y)	-- m
 	-- hyperphysics:
 	--local lambda = wire_charge_density_per_length / current_velocity	-- m^0 / m^0 = m^0
@@ -88,7 +88,7 @@ local E = ns:lambda(function(...)
 end)
 print('E',E)
 local B = ns:lambda(function(...)
-	local x,y,z = table.unpack(xs(...))	-- m
+	local x,y,z = xs(...):unpack()	-- m
 	local r2 = math.sqrt(x*x+y*y)	-- m
 	-- http://www.ifi.unicamp.br/~assis/Found-Phys-V29-p729-753(1999).pdf
 	local Bt_int = constants.mu0 * wire_current * r2 / (2 * math.pi * wire_radius^2) -- m^0 m / (m^2) = m^-1
@@ -606,7 +606,7 @@ for iter=1,20 do
 
 	-- now swizzle to update the Conn^a_bt(x,y,z) components
 	for i in ConnUa_bt:iter() do
-		local a,b,x,y,z = table.unpack(i)
+		local a,b,x,y,z = i:unpack()
 		local ConnUa_bt_xi = ConnUa_bt[i]
 		Conn[x][y][z][a][b][1] = ConnUa_bt_xi 
 		-- note that the upper-matrix Conn^a_ti components have no solution
@@ -637,7 +637,7 @@ f:write'#ix\tiy\tiz\tgrav\n'
 for i=1,ns[1] do
 	for j=1,ns[2] do
 		for k=1,ns[3] do
-			local x,y,z = table.unpack(xs[i][j][k])
+			local x,y,z = xs[i][j][k]:unpack()
 			local Conni = Conn[i][j][k]
 			-- x''^i ~ Conn^i_ab x'^a x'^b
 			-- for objects at rest, x' = (1,0,0,0)
