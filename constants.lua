@@ -1,9 +1,10 @@
+local tolua = require 'ext.tolua'
 local impl = setmetatable({}, {__index=_G})
 local envmeta = {
 	__index = impl,
 	__newindex = function(t,k,v)
 		if impl[k] then error("tried to overwrite constant") end
-		print(k,v)
+		print(k,tolua(v))
 		impl[k] = v
 	end,
 }

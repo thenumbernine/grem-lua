@@ -5,7 +5,7 @@ local div = require 'matrix.div'
 local lapinv = require 'matrix.lapinv'
 local hemholtzinv = require 'matrix.hemholtzinv'
 matrix.__tostring = tolua
-local ns = matrix{8,8,8}
+local ns = matrix{16,16,16}
 print('ns',ns)
 local max = matrix{1,1,1}
 local min = -max
@@ -508,6 +508,7 @@ time to switch over to GPU ...
 ... why not implement this algo there?
 --]]
 -- [=[ this is getting finite results!  hooray!
+-- TODO but shouldn't the spatial metric be used in the divergence?
 local dt_Conn = matrix{ns[1],ns[2],ns[3],4,4,4}:zeros()
 local div_Conni = matrix{ns[1],ns[2],ns[3],4,4}:zeros()
 local Conn = matrix{ns[1],ns[2],ns[3],4,4,4}:zeros()
