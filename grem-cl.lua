@@ -38,6 +38,7 @@ inline real eps3(int i, int j, int k) {
 	if ((k+1)%3 == j && (j+1)%3 == i) return -1;
 	return 0;
 }
+
 ]], {
 	clnumber = clnumber,
 	clvec = clvec,
@@ -58,10 +59,18 @@ typedef struct {
 	real s[4][4][4][4];
 } Riemann_t;
 
-typedef real Conn_t[4][4][4];
+typedef struct {
+	real s[4][4][4];
+} Conn_t;
+
+typedef union {
+	real4 m[4];
+	real s[16];
+} real4x4;
+
 ]]}:concat'\n'
 end
-local env = ThisEnv{size=ns}
+local env = ThisEnv{size=ns, verbose=true}
 
 print'xs...'
 local xs = env:buffer{name='xs', type='real3'}
@@ -99,10 +108,24 @@ print('wire_charge_density_per_length',wire_charge_density_per_length)
 local wire_surface_charge_density = 0
 print('wire_surface_charge_density',wire_surface_charge_density)
 
-print'E and B...'
+print'allocating cl...'
 local E = env:buffer{name='E', type='real3'}
 local B = env:buffer{name='B', type='real3'}
-env:kernel{
+local R = env:buffer{name='R', type='Riemann_t'}
+local dt_Conn = env:buffer{name='dt_Conn', type='Conn_t'}
+local div_Conni = env:buffer{name='div_Conni', type='real4x4'}
+local Conn = env:buffer{name='Conn', type='Conn_t'}
+
+-- Conn^a_bt,i: [x,y,z,i] for fixed a,b
+-- the calculations stored in this can be merged into the lapConnUa_bt kernel if we need the memory
+local ConnUa_bt_i = env:buffer{name='ConnUa_bt_i', type='real3'}
+
+-- Conn^a_bt,ij g^ij: [x,y,z] for fixed a,b
+-- using g^ij = delta^ij for now
+local lapConnUa_bt = env:buffer{name='lapConnUa_bt', type='real'}
+
+print'building kernels...'
+local init_E_B = env:kernel{
 	argsOut={E,B},
 	argsIn={xs},
 	body=template([[
@@ -136,11 +159,10 @@ env:kernel{
 	wire_surface_charge_density = wire_surface_charge_density,
 	wire_radius = wire_radius,
 	constants = constants,
-})}()
+})}
+init_E_B:compile() 
 
-print'R...'
-local R = env:buffer{name='R', type='Riemann_t'}
-env:kernel{
+local init_R = env:kernel{
 	argsOut={R},
 	argsIn={E,B},
 	body=[[
@@ -185,31 +207,12 @@ env:kernel{
 			}
 		}
 	}
-]]}()
-
-print'dt_Conn, div_Conni, Conn...'
--- free parameter
--- TODO it is stalling here
-local dt_Conn = env:buffer{name='dt_Conn', type='Conn_t'}
-dt_Conn:fill()
-
-local div_Conni = env:buffer{name='div_Conni', type='real16'}
-div_Conni:fill()
-
-local Conn = env:buffer{name='Conn', type='Conn_t'}
-Conn:fill()
-print'done'
-
--- Conn^a_bt,i: [x,y,z,i] for fixed a,b
--- the calculations stored in this can be merged into the lapConnUa_bt kernel if we need the memory
-local ConnUa_bt_i = env:buffer{name='ConnUa_bt_i', type='real3'}
--- Conn^a_bt,ij g^ij: [x,y,z] for fixed a,b
--- using g^ij = delta^ij for now
-local lapConnUa_bt = env:buffer{name='lapConnUa_bt', type='real'}
+]]}
+init_R:compile() 
 
 local calc_ConnUa_bt_i = range(4):map(function(a)
 	return range(4):map(function(b)
-		return env:kernel{
+		local k = env:kernel{
 			argsOut = {ConnUa_bt_i},
 			argsIn = {Conn, dt_Conn},
 			body = template([[
@@ -219,27 +222,69 @@ local calc_ConnUa_bt_i = range(4):map(function(a)
 	global const Conn_t* Conni = Conn + index;
 	for (int i = 0; i < 3; ++i) {
 		for (int c = 0; c < 4; ++c) {
-			ConnSq += Conni.s[a][c][b] * Conni[c][b][i+1]
-					- Conni[a][c][i+1] * Conni[c][b][0];
+			ConnSq += Conni->s[a][c][b] * Conni->s[c][b][i+1]
+					- Conni->s[a][c][i+1] * Conni->s[c][b][0];
 		}
 	}
 ]], 	{
 			a = a,
 			b = b,
 		})}
+		k:compile()
+		return k
 	end)
 end)
 
+local calc_lapConnUa_bt = range(4):map(function(a)
+	return range(4):map(function(b)
+		local k = env:kernel{
+			argsOut = {lapConnUa_bt},
+			argsIn = {ConnUa_bt_i},
+			body = template[[
+	if (i.x == 0 || i.x == size.x-1 || 
+		i.y == 0 || i.y == size.y-1 ||
+		i.z == 0 || i.z == size.z-1) 
+	{
+		lapConnUa_bt[index] = 0;
+	} else {
+		lapConnUa_bt[index] = 0.
+<? for j=0,2 do 
+?>			+ .5 * dxs.s<?=j?> * (
+				ConnUa_bt_i[index+stepsize.s<?=j?> ].s<?=j?> - 
+				ConnUa_bt_i[index-stepsize.s<?=j?> ].s<?=j?>)
+<? end 
+?>		;
+	} 
+]]}
+		k:compile()
+		return k
+	end)
+end)
+
+print'executing...'
+print'E and B...'
+init_E_B()
+
+print'R...'
+init_R()
+
+--dt_Conn:fill()
+--div_Conni:fill()
+--Conn:fill()
+
 for iter=1,20 do
+	print('iter',iter)
 	for a=1,4 do
 		for b=1,4 do
-print('iter',iter,'a',a',b',b)
 			-- store Conn^a_bt,ij g^ij
+			print('calc_ConnUa_bt_i',a,b)
 			calc_ConnUa_bt_i[a][b]()
 
 			-- calculate Conn^a_bt
-
+			print('calc_lapConnUa_bt',a,b)
+			calc_lapConnUa_bt[a][b]()
 		end
 	end
 end
 
+print'done'
