@@ -5,7 +5,7 @@ local div = require 'matrix.div'
 local lapinv = require 'matrix.lapinv'
 local hemholtzinv = require 'matrix.hemholtzinv'
 matrix.__tostring = tolua
-local ns = matrix{16,16,16}
+local ns = matrix{8,8,8}
 print('ns',ns)
 local max = matrix{1,1,1}
 local min = -max
@@ -510,7 +510,10 @@ time to switch over to GPU ...
 -- [=[ this is getting finite results!  hooray!
 -- TODO but shouldn't the spatial metric be used in the divergence?
 local dt_Conn = matrix{ns[1],ns[2],ns[3],4,4,4}:zeros()
-local div_Conni = matrix{ns[1],ns[2],ns[3],4,4}:zeros()
+local div_Conni = matrix{ns[1],ns[2],ns[3],4,4}:lambda(function(x,y,z,a,b)
+	-- divergence of Conn^a_bj,j
+	return math.sqrt(E[x][y][z]:normSq() + B[x][y][z]:normSq())
+end)
 local Conn = matrix{ns[1],ns[2],ns[3],4,4,4}:zeros()
 local last_Conn_norm 
 for iter=1,20 do
@@ -593,10 +596,12 @@ for iter=1,20 do
 			return div_Conni(x,y,z,a,b)
 		end)
 
+		-- without divergence the inverse curl doesn't converge very quickly
 		return hemholtzinv{
 			div = div_ConnUa_bi,
 			curl = curl_ConnUa_bi, 
 			dx = dx,
+			epsilon = .1,
 			errorCallback = function(err, iter, x, rSq, bSq)
 				-- err varies from algorithm to algorithm ... hmm ... maybe it shouldn't ... 
 				print('...curl inv gmres of Conn '..a..','..b..' iter '..iter..' err '..err)
@@ -609,16 +614,17 @@ for iter=1,20 do
 	for i in ConnUa_bt:iter() do
 		local a,b,x,y,z = i:unpack()
 		local ConnUa_bt_xi = ConnUa_bt[i]
-		Conn[x][y][z][a][b][1] = ConnUa_bt_xi 
+		Conn[x][y][z][a][b][1] = assert(ConnUa_bt_xi)
 		-- note that the upper-matrix Conn^a_ti components have no solution
 		-- they are completely up in the air, and differ with Conn^a_it by c_it^a
 		-- so if commutation coefficients are nonzero then Conn^a_ti is arbitrary 
-		Conn[x][y][z][a][1][b] = ConnUa_bt_xi
+		Conn[x][y][z][a][1][b] = assert(ConnUa_bt_xi)
 		-- Conn^a_bj, on the other hand, has its upper-matrix portions accounted for since it is solved with a cirl
 		-- since it is solved using a curl, it does has DOF involving the div Conn^a_bj,j 
 		local ConnUa_bij = ConnUa_bi[i]
 		for j=1,3 do
-			Conn[x][y][z][a][b][j] = ConnUa_bij[j]
+			-- if I do include the symmetric terms then I will include Conn^a_jb, which includes Conn^a_jt, which is covered in Conn^a_bt
+			Conn[x][y][z][a][b][j+1] = assert(ConnUa_bij[j])
 		end
 		-- so degrees of freedom: 
 		-- Conn^a_bc,t by separation of time partials

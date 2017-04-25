@@ -57,7 +57,7 @@ local View = require 'glapp.view'
 local orbit = require 'glapp.orbit'
 local bit = require 'bit'
 local ig = require 'ffi.imgui'
-local gl = require 'ffi.OpenGL'
+local gl = require 'gl'
 
 local App = class(orbit(View.apply(ImGuiApp)))
 App.viewDist = 2
