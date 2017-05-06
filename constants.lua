@@ -1,10 +1,10 @@
-local tolua = require 'ext.tolua'
 local impl = setmetatable({}, {__index=_G})
 local envmeta = {
 	__index = impl,
 	__newindex = function(t,k,v)
 		if impl[k] then error("tried to overwrite constant") end
-		print(k,tolua(v))
+--		local tolua = require 'ext.tolua'
+--		print(k,tolua(v))
 		impl[k] = v
 	end,
 }
@@ -20,7 +20,7 @@ space vs time:
 speed of light: c = 1 = ~c~ m/s, for ~c~ = 2.99792458e+8
 so ~c~ m = 1 s, 1/~c~ s = 1 m, m/s = 1/~c~
 --]]
-c = 2.99792458e+8
+c = 299792458
 s_in_m = 1 / c
 
 -- why not just change the lenght of a meter to 1/3e+8 ?
@@ -66,12 +66,16 @@ notice that the classical electron radius is re = ke e^2 / (me c^2) = 2.81794032
 e = 6.2415093414e+18
 e_in_m = C_in_m / e
 
+-- Planck length, in meters
 h_in_m = 1.61622938e-35
+
 -- note the ratio of the elementary charge-converted-to-meters and Planck length 
 -- is the same as the ratio of the elementary charge and Planck charge
 alpha = (e_in_m/h_in_m)^2
 
-in_in_m = .0254 
+in_in_m = .0254
+
+local table = require 'ext.table'
 
 -- source: http://hyperphysics.phy-astr.gsu.edu/hbase/electric/resis.html
 wire_resistivities = table{	-- at 20' Celsius, in ohm m
@@ -84,6 +88,7 @@ wire_resistivities = table{	-- at 20' Celsius, in ohm m
 	platinum = 1.06e-7,
 	tungsten = 5.65e-8,
 }:map(function(v) return v * Ohm_in_m end)	-- ohm m => m^0
+
 wire_diameters = table{	-- starts in inches
 	electrical_range = .1019,
 	household_circuit = .0808,
