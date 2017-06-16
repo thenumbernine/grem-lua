@@ -23,7 +23,7 @@ so ~c~ m = 1 s, 1/~c~ s = 1 m, m/s = 1/~c~
 c = 299792458
 s_in_m = 1 / c
 
--- why not just change the lenght of a meter to 1/3e+8 ?
+-- why not just change the length of a meter to 1/3e+8 ?
 -- here is how much it would shrink by ...
 --print((1/c - 1/3e+8)*c*1000)	-- difference in 1 m and 1 adj m, in terms of mm
 -- 0.69180666666663 mm 
@@ -64,14 +64,16 @@ so 1 e = 1/~e~ C = sqrt(~ke~ ~G~) / (~c~^2 ~e~) m
 notice that the classical electron radius is re = ke e^2 / (me c^2) = 2.817940322719e-15 m
 --]]
 e = 6.2415093414e+18
-e_in_m = C_in_m / e
+e_in_m = C_in_m / e		
+-- this is the charge of a single electron, in meters...
+-- which is 11.7 = sqrt(1/alpha) times smaller than Planck length ...
 
 -- Planck length, in meters
-h_in_m = 1.61622938e-35
+lP_in_m = 1.61622938e-35
 
 -- note the ratio of the elementary charge-converted-to-meters and Planck length 
 -- is the same as the ratio of the elementary charge and Planck charge
-alpha = (e_in_m/h_in_m)^2
+alpha = (e_in_m/lP_in_m)^2
 
 in_in_m = .0254
 
