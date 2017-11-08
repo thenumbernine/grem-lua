@@ -39,11 +39,11 @@ local c
 local F2
 local function apply(F_)
 	local curl = require 'matrix.curl'
-	local hemholtzinv = require 'matrix.hemholtzinv'
+	local helmholtzinv = require 'matrix.helmholtzinv'
 	local startTime = os.clock()
 	F = F_
 	c = curl(F,dx)
-	F2 = hemholtzinv{curl=c, dx=dx}
+	F2 = helmholtzinv{curl=c, dx=dx}
 	print('took',os.clock()-startTime,'seconds')
 	print('|F|',F:norm())
 	print('|c|',c:norm())

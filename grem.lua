@@ -3,7 +3,7 @@ require 'ext'
 local matrix = require 'matrix'
 local div = require 'matrix.div'
 local lapinv = require 'matrix.lapinv'
-local hemholtzinv = require 'matrix.hemholtzinv'
+local helmholtzinv = require 'matrix.helmholtzinv'
 matrix.__tostring = tolua
 local ns = matrix{8,8,8}
 print('ns',ns)
@@ -409,7 +409,7 @@ Conn^i_jk based on R^i_jkl = g^it R_tjkl + g^im R_mjkl = g^it (gamma_jk S_l - ga
 https://groups.google.com/forum/#!topic/comp.soft-sys.matlab/jv_2gsSF-pE
 curl B = R
 div B = D
-(A,phi) = Hemholtz decomposition of B
+(A,phi) = Helmholtz decomposition of B
 B = curl A + grad phi
 first the curl ...
 div A = 0 <= gauge
@@ -489,7 +489,7 @@ but what about the asymmetric terms: Conn^a_jt,t ?  what does tha influence?
 however it is related via Conn^a_jt - Conn^a_tj = c_tj^a
 
 how to solve the curl eqns:
-to invert a Hemholtz decomposition, solve B = grad lap^-1 (div B) - curl veclap^-1 (curl B)
+to invert a Helmholtz decomposition, solve B = grad lap^-1 (div B) - curl veclap^-1 (curl B)
 
 to fully solve the inverse of a curl, 
 you have an arbitrary gauge of the div of the field
@@ -556,7 +556,7 @@ for iter=1,20 do
 			errorCallback = function(err, iter, x, rSq, bSq)
 				-- err varies from algorithm to algorithm ... hmm ... maybe it shouldn't ... 
 				print('...div inv gmres of Conn '..a..','..b..' iter '..iter..' err '..err)
-				assert(math.isfinite(err))
+				if not math.isfinite(err) then return true end
 			end,
 		}
 	end)
@@ -597,7 +597,7 @@ for iter=1,20 do
 		end)
 
 		-- without divergence the inverse curl doesn't converge very quickly
-		return hemholtzinv{
+		return helmholtzinv{
 			div = div_ConnUa_bi,
 			curl = curl_ConnUa_bi, 
 			dx = dx,
@@ -605,7 +605,7 @@ for iter=1,20 do
 			errorCallback = function(err, iter, x, rSq, bSq)
 				-- err varies from algorithm to algorithm ... hmm ... maybe it shouldn't ... 
 				print('...curl inv gmres of Conn '..a..','..b..' iter '..iter..' err '..err)
-				assert(math.isfinite(err))
+				if not math.isfinite(err) then return true end
 			end,
 		}
 	end)
