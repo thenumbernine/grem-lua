@@ -52,14 +52,11 @@ local function apply(F_)
 end
 apply(F)
 
-local ImGuiApp = require 'imguiapp'
-local View = require 'glapp.view'
-local orbit = require 'glapp.orbit'
 local bit = require 'bit'
 local ig = require 'ffi.imgui'
 local gl = require 'gl'
 
-local App = class(orbit(View.apply(ImGuiApp)))
+local App = class(require 'glapp.orbit'(require 'imguiapp'))
 App.viewDist = 2
 function App:update()
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
