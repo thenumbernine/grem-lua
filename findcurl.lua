@@ -13,12 +13,12 @@ local dx = (max - min):ediv(n)
 print('min',min)
 print('max',max)
 print('dx',dx)
-local xs = matrix.zeros(n[1],n[2],n[3],3)
+local xs = matrix.zeros{n[1],n[2],n[3],3}
 for i in n:range() do
 	xs[i] = (i - .5):emul(dx) + min
 end
 
-local F = matrix.zeros(n[1],n[2],n[3],3)
+local F = matrix.zeros{n[1],n[2],n[3],3}
 for i in n:range() do
 	if i[1]==1 or i[2]==1 or i[3]==1
 	or i[1]==n[1] or i[2]==n[2] or i[3]==n[3]
