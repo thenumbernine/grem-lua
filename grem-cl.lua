@@ -49,21 +49,21 @@ inline real eps3(int i, int j, int k) {
 end
 function ThisEnv:getTypeCode()
 	return table{ThisEnv.super.getTypeCode(self), [[
-typedef union {
+typedef union real3 {
 	struct { real x, y, z; };
 	struct { real s0, s1, s2; };
 	real s[3];
 } real3;
 
-typedef struct {
+typedef struct Riemann_t {
 	real s[4][4][4][4];
 } Riemann_t;
 
-typedef struct {
+typedef struct Conn_t {
 	real s[4][4][4];
 } Conn_t;
 
-typedef union {
+typedef union real4x4 {
 	real4 m[4];
 	real s[16];
 } real4x4;
