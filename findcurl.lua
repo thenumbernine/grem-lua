@@ -56,7 +56,7 @@ local bit = require 'bit'
 local ig = require 'imgui'
 local gl = require 'gl'
 
-local App = require 'imguiapp.withorbit'()
+local App = require 'imgui.appwithorbit'()
 App.viewDist = 2
 function App:update()
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
