@@ -1,0 +1,27 @@
+--------------------------------------------
+-- generated with dist/build-distinfo.rua --
+--------------------------------------------
+
+name = "grem"
+files = {
+	["README.md"] = "grem/README.md",
+	["analytical.html"] = "grem/analytical.html",
+	["constants.lua"] = "grem/constants.lua",
+	["discrete.html"] = "grem/discrete.html",
+	["findcurl.lua"] = "grem/findcurl.lua",
+	["grem-cl.lua"] = "grem/grem-cl.lua",
+	["grem-ffi.lua"] = "grem/grem-ffi.lua",
+	["grem.lua"] = "grem/grem.lua",
+	["messingaround.lua"] = "grem/messingaround.lua",
+	["newton.lua"] = "grem/newton.lua",
+}
+deps = {
+	"bit",
+	"cl",
+	"ext",
+	"gl",
+	"imgui",
+	"matrix",
+	"symmath",
+	"template",
+}
