@@ -4,16 +4,17 @@
 
 name = "grem"
 files = {
-	["README.md"] = "grem/README.md",
-	["analytical.html"] = "grem/analytical.html",
-	["constants.lua"] = "grem/constants.lua",
-	["discrete.html"] = "grem/discrete.html",
-	["findcurl.lua"] = "grem/findcurl.lua",
-	["grem-cl.lua"] = "grem/grem-cl.lua",
-	["grem-ffi.lua"] = "grem/grem-ffi.lua",
-	["grem.lua"] = "grem/grem.lua",
-	["messingaround.lua"] = "grem/messingaround.lua",
-	["newton.lua"] = "grem/newton.lua",
+	"README.md",
+	"analytical.html",
+	"constants.lua",
+	"discrete.html",
+	"distinfo",
+	"findcurl.lua",
+	"grem-cl.lua",
+	"grem-ffi.lua",
+	"grem.lua",
+	"messingaround.lua",
+	"newton.lua",
 }
 deps = {
 	"bit",
